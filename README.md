@@ -1,7 +1,19 @@
 # gl_multicast
 In this sample the **GL_NVX_linked_gpu_multicast** extension is used to render a basic stereo scene on two GPUs in an SLI system.
 
->NOTE: This sample does not yet work with publicly released drivers.
+> |
+
+> |
+
+> |
+
+> **NOTE: This sample does not yet work with publicly released drivers.**
+
+> |
+
+> |
+
+> |
 
 ![sample screenshot](https://github.com/nvpro-samples/gl_multicast/blob/master/doc/sample.png)
 
