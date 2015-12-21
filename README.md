@@ -7,7 +7,7 @@ In this sample the **GL_NVX_linked_gpu_multicast** extension is used to render a
 
 > |
 
-> **NOTE: This sample does not yet work with publicly released drivers.**
+> NOTE: This sample works with drivers 361.43 (http://www.nvidia.com/download/driverResults.aspx/96888/en-us) and above.
 
 > |
 
