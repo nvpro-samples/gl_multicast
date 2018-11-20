@@ -8,8 +8,8 @@
 #define SAMPLE_LOAD 1  // default 1
 
 // x- and y-tessellation of a torus object
-#define TORUS_M 850
-#define TORUS_N 850
+#define TORUS_M 420
+#define TORUS_N 420
 
 // bit 0
 #define GPUMASK_0 1<<0

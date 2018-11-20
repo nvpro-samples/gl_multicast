@@ -1,38 +1,43 @@
-/*-----------------------------------------------------------------------
-  Copyright (c) 2014, NVIDIA. All rights reserved.
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions
-  are met:
-   * Redistributions of source code must retain the above copyright
-     notice, this list of conditions and the following disclaimer.
-   * Neither the name of its contributors may be used to endorse 
-     or promote products derived from this software without specific
-     prior written permission.
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
-  EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-  PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-  CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-  PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
-  OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
------------------------------------------------------------------------*/
+/* Copyright (c) 2014-2018, NVIDIA CORPORATION. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *  * Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *  * Neither the name of NVIDIA CORPORATION nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 /* Contact iesser@nvidia.com (Ingo Esser) for feedback */
 
-#define NVGLF_DEBUG_FILTER     1
-
-#include <gl/glew.h>
+#include <include_gl.h>
 #include <windows.h>
 
-#include <nv_helpers/anttweakbar.hpp>
+#include <imgui/imgui_helper.h>
+#include <imgui/imgui_impl_gl.h>
+
 #include <nv_helpers/cameracontrol.hpp>
 #include <nv_helpers/geometry.hpp>
-#include <nv_helpers_gl/glresources.hpp>
-#include <nv_helpers_gl/programmanager.hpp>
-#include <nv_helpers_gl/WindowProfiler.hpp>
+#include <nv_helpers_gl/base_gl.hpp>
+#include <nv_helpers_gl/programmanager_gl.hpp>
+#include <nv_helpers_gl/appwindowprofiler_gl.hpp>
 #include <nv_math/nv_math_glsltypes.h>
 
 #include <chrono>
@@ -46,40 +51,29 @@ using namespace nv_math;
 namespace
 {
   int const SAMPLE_SIZE_WIDTH(800);
-  int const SAMPLE_SIZE_HEIGHT(600);
+  int const SAMPLE_SIZE_HEIGHT(400);
+
+  // on screen and offscreen sizes are decoupled:
+  int const SAMPLE_OFFSCREEN_SIZE_WIDTH(  SAMPLE_SIZE_WIDTH/2 );
+  int const SAMPLE_OFFSCREEN_SIZE_HEIGHT( SAMPLE_SIZE_HEIGHT );
 
   int const SAMPLE_MAJOR_VERSION(4);
-  int const SAMPLE_MINOR_VERSION(2);
-
-
-  // MULTICAST
-  // typedefs for the extension functions
-  typedef void (GLAPIENTRY * PFNGLLGPUNAMEDBUFFERSUBDATANVXPROC) (GLbitfield gpuMask, GLuint buffer, GLintptr offset, GLsizeiptr size, const GLvoid *data);
-  typedef void (GLAPIENTRY * PFNGLLGPUCOPYIMAGESUBDATANVXPROC) (GLuint sourceGpu, GLbitfield destinationGpuMask, GLuint srcName, GLuint srcTarget, GLint srcLevel, GLint srcX, GLint srcY, GLint srcZ, GLuint dstName, GLuint dstTarget, GLint dstLevel, GLint dstX, GLint dstY, GLint dstZ, GLsizei width, GLsizei height, GLsizei depth);
-  typedef void (GLAPIENTRY * PFNGLLGPUINTERLOCKNVXPROC) (void);
-
-  // function pointers for the extension functions
-  PFNGLLGPUNAMEDBUFFERSUBDATANVXPROC glLGPUNamedBufferSubDataNVX(nullptr);
-  PFNGLLGPUCOPYIMAGESUBDATANVXPROC glLGPUCopyImageSubDataNVX(nullptr);
-  PFNGLLGPUINTERLOCKNVXPROC glLGPUInterlockNVX(nullptr);
-
-  // defines for the extension 
-#ifndef LGPU_SEPARATE_STORAGE_BIT_NVX
-#define LGPU_SEPARATE_STORAGE_BIT_NVX 0x0800
-#endif
-#ifndef GL_MAX_LGPU_GPUS_NVX
-#define GL_MAX_LGPU_GPUS_NVX          0x92BA
-#endif
-
-  
+  int const SAMPLE_MINOR_VERSION(5);
 }
-
 
 namespace vertexload
 {
 
   namespace render
   {
+
+    struct UIData {
+      bool m_drawUI = true;
+      int  m_loadFactor = 102;
+      bool m_multicast = true;
+      bool m_multicastCopy = true;
+      bool m_multicastBlit = false;
+    };
 
     struct Vertex {
       Vertex(const nv_helpers::geometry::Vertex& vertex){
@@ -139,12 +133,17 @@ namespace vertexload
       Data()
         : windowWidth( SAMPLE_SIZE_WIDTH )
         , windowHeight( SAMPLE_SIZE_HEIGHT )
-        , texWidth( SAMPLE_SIZE_WIDTH/2 )
-        , texHeight( SAMPLE_SIZE_HEIGHT )
+        , texWidth( SAMPLE_OFFSCREEN_SIZE_WIDTH )
+        , texHeight( SAMPLE_OFFSCREEN_SIZE_HEIGHT )
       {
         sceneData.projNear = 0.01f;
         sceneData.projFar  = 100.0f;
       }
+
+      UIData                    m_uiData;
+      UIData                    m_lastUIData;
+      ImGuiH::Registry          m_ui;
+      double                    m_uiTime = 0;
 
       Buffers   buf;
       Textures  tex;
@@ -172,10 +171,9 @@ namespace vertexload
       Programs& programs = rd.prog;
 
       bool validated(true);
-
-      pm.addDirectory( std::string(PROJECT_NAME));
-      pm.addDirectory( NVPWindow::sysExePath() + std::string(PROJECT_RELDIRECTORY));
-      pm.addDirectory( std::string(PROJECT_ABSDIRECTORY));
+      pm.addDirectory( std::string("GLSL_" PROJECT_NAME) );
+      pm.addDirectory( NVPWindow::sysExePath() + std::string(PROJECT_RELDIRECTORY) );
+      pm.addDirectory( std::string(PROJECT_ABSDIRECTORY) );
 
       pm.registerInclude("common.h", "common.h");
 
@@ -307,11 +305,10 @@ namespace vertexload
       }
 
 
-      // MULTICAST
-      // need to mark UBOs LGPU_SEPARATE_STORAGE_BIT_NVX
+      // GL_NV_gpu_multicast
+      // need to mark UBOs GL_PER_GPU_STORAGE_BIT_NV to make sure they can contain different data per GPU
       nv_helpers_gl::newBuffer( buffers.sceneUbo );
-      glNamedBufferStorageEXT( buffers.sceneUbo, sizeof(SceneData), nullptr, GL_DYNAMIC_STORAGE_BIT|LGPU_SEPARATE_STORAGE_BIT_NVX );
-
+      glNamedBufferStorage( buffers.sceneUbo, sizeof(SceneData), nullptr, GL_DYNAMIC_STORAGE_BIT|GL_PER_GPU_STORAGE_BIT_NV );
 
 
       nv_helpers_gl::newBuffer( buffers.objectUbo );
@@ -329,26 +326,27 @@ namespace vertexload
     {
       auto newTex = [&]( GLuint& tex )
       {
-        nv_helpers_gl::newTexture( tex );
+        nv_helpers_gl::newTexture( tex, GL_TEXTURE_2D );
         glBindTexture ( GL_TEXTURE_2D, tex );
         glTexStorage2D( GL_TEXTURE_2D, 1, GL_RGBA8, rd.texWidth, rd.texHeight );
         glBindTexture ( GL_TEXTURE_2D, 0);
 
 
-        // MULTICAST
-        // we need to clear the textures via a FBO once to get a P2P flag
+        // GL_NV_gpu_multicast
+        // we need to clear the textures via an FBO once to get a P2P flag - this allows texture copies between GPUs
         glBindFramebuffer( GL_FRAMEBUFFER, rd.tempFBO );
         glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0 );
         glClearBufferfv( GL_COLOR, 0, &vec4f(0.0f)[0] );
         glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0 );
         glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
+
       };
 
       newTex( rd.tex.colorTexLeft );
       newTex( rd.tex.colorTexRight );
 
-      nv_helpers_gl::newTexture( rd.tex.depthTex );
+      nv_helpers_gl::newTexture(rd.tex.depthTex, GL_TEXTURE_2D);
       glBindTexture  ( GL_TEXTURE_2D, rd.tex.depthTex );
       glTexStorage2D ( GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT24, rd.texWidth, rd.texHeight);
       glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
@@ -409,7 +407,7 @@ namespace vertexload
           rd.objectData.color = nv_math::vec3f( (torusIndex+1)&1, ((torusIndex+1)&2)/2, ((torusIndex+1)&4)/4 );
 
           // set model UBO
-          glNamedBufferSubDataEXT( rd.buf.objectUbo, 0, sizeof(ObjectData), &rd.objectData );
+          glNamedBufferSubData( rd.buf.objectUbo, 0, sizeof(ObjectData), &rd.objectData );
           glBindBufferBase(GL_UNIFORM_BUFFER, UBO_OBJECT, rd.buf.objectUbo);
 
           glDrawElements( GL_TRIANGLES, rd.buf.numIndices, GL_UNSIGNED_INT, NV_BUFFER_OFFSET(0) );
@@ -426,60 +424,50 @@ namespace vertexload
     }
   } //namespace render
 
-  class Sample : public nv_helpers_gl::WindowProfiler {
+  class Sample : public nv_helpers_gl::AppWindowProfilerGL {
   public:
     Sample();
 
     bool begin();
+    void processUI(double time);
     void think(double time);
     void resize(int width, int height);
     void end();
 
-    bool mouse_pos    (int x, int y) {
-      return !!TwEventMousePosGLFW(x,y); 
+    // return true to prevent m_window updates
+    bool mouse_pos(int x, int y) {
+      if (!m_rd.m_uiData.m_drawUI) return false;
+      return ImGuiH::mouse_pos(x, y);
     }
-    bool mouse_button (int button, int action) {
-      return !!TwEventMouseButtonGLFW(button, action);
+    bool mouse_button(int button, int action) {
+      if (!m_rd.m_uiData.m_drawUI) return false;
+      return ImGuiH::mouse_button(button, action);
     }
-    bool mouse_wheel  (int wheel) {
-      return !!TwEventMouseWheelGLFW(wheel); 
+    bool mouse_wheel(int wheel) {
+      if (!m_rd.m_uiData.m_drawUI) return false;
+      return ImGuiH::mouse_wheel(wheel);
     }
-    bool key_button   (int button, int action, int mods) {
-      return nv_helpers::handleTwKeyPressed(button,action,mods);
+    bool key_char(int button) {
+      if (!m_rd.m_uiData.m_drawUI) return false;
+      return ImGuiH::key_char(button);
+    }
+    bool key_button(int button, int action, int mods) {
+      if (!m_rd.m_uiData.m_drawUI) return false;
+      return ImGuiH::key_button(button, action, mods);
     }
 
-  protected:
-    struct Tweak {
-      Tweak() 
-#if BENCHMARK_MODE
-        : m_loadFactor( SAMPLE_LOAD*20 )
-#else 
-        : m_loadFactor( 6 )
-#endif
-        , m_multicast( 1 )
-      {}
-
-      int  m_loadFactor;
-      char m_multicast;
-    };
-
-    Tweak                     m_tweak;
+  protected:    
     nv_helpers::CameraControl m_control;
     size_t                    m_frameCount;
     render::Data              m_rd;
   };
 
   Sample::Sample()
-    : nv_helpers_gl::WindowProfiler( /*singleThreaded=*/true, /*doSwap=*/true ) 
+    : nv_helpers_gl::AppWindowProfilerGL( /*singleThreaded=*/true, /*doSwap=*/true )
     , m_frameCount( 0 )
   {
-
-
-    // MULTICAST
-    // export the environment variable BEFORE the first OpenGL context is initialized
-    putenv("GL_NVX_LINKED_GPU_MULTICAST=1");
-
-
+    // set the environment variable GL_NV_gpu_multicast to tell the driver to switch to multicast mode
+    putenv("GL_NV_GPU_MULTICAST=1");
   }
 
   bool Sample::begin()
@@ -488,62 +476,27 @@ namespace vertexload
     std::locale::global(std::locale(""));
     std::cout.imbue(std::locale());
 
-    TwInit(TW_OPENGL_CORE,NULL);
-    TwWindowSize(m_window.m_viewsize[0],m_window.m_viewsize[1]);
+    ImGuiH::Init(m_window.m_viewsize[0], m_window.m_viewsize[1], this);
+    ImGui::InitGL();
 
     vsync( false );
-
-#if BENCHMARK_MODE
-    m_profilerPrint = false;
-#endif
-
+    
     bool validated( true );
 
 
-    // MULTICAST
-    // look for the extension in the extensions list
-    GLint numExtensions;
-    glGetIntegerv( GL_NUM_EXTENSIONS, &numExtensions );
-
-    bool found = false;
-    for( GLint i=0; i < numExtensions && !found; ++i )
-    {
-      std::string name( (const char*)glGetStringi( GL_EXTENSIONS, i ) );
-      if( name == "GL_NVX_linked_gpu_multicast" )
-      {
-        std::cout << "Extension " << name << " found!\n";
-        found = true;
-      }
-    }
-
-    if( !found )
+    // GL_NV_gpu_multicast
+    if ( !has_GL_NV_gpu_multicast )
     {
       minimize();
-      std::cerr << "Multicast extension not found, aborting!\n\n";
-      std::this_thread::sleep_for( std::chrono::seconds(5) );
+      std::cout << "Extension GL_NV_gpu_multicast not found!\n";
+      std::this_thread::sleep_for(std::chrono::seconds(5));
       return false;
     }
 
-    // get pointers to the extension functions
-    glLGPUNamedBufferSubDataNVX = (PFNGLLGPUNAMEDBUFFERSUBDATANVXPROC)wglGetProcAddress("glLGPUNamedBufferSubDataNVX");
-    glLGPUCopyImageSubDataNVX = (PFNGLLGPUCOPYIMAGESUBDATANVXPROC)wglGetProcAddress("glLGPUCopyImageSubDataNVX");
-    glLGPUInterlockNVX = (PFNGLLGPUINTERLOCKNVXPROC)wglGetProcAddress("glLGPUInterlockNVX");
-
-    if(  glLGPUNamedBufferSubDataNVX == nullptr 
-      || glLGPUCopyImageSubDataNVX == nullptr 
-      || glLGPUInterlockNVX == nullptr )
-    {
-      minimize();
-      std::cerr << "\n\nGL_NVX_linked_gpu_multicast not supported, aborting!\n\n";
-      std::this_thread::sleep_for( std::chrono::seconds(5) );
-      return false;
-    }
-
-    // query the number of GPUs available in this system
-    glGetIntegerv(GL_MAX_LGPU_GPUS_NVX, &m_rd.numGPUs);
+    // query the number of GPUs available in this system and configured for NV multicast
+    glGetIntegerv ( GL_MULTICAST_GPUS_NV, &m_rd.numGPUs );
     std::cout << "GPUs found: " << m_rd.numGPUs << "\n";
-
-
+    
     // control setup
     m_control.m_sceneOrbit = nv_math::vec3(0.0f);
     m_control.m_sceneDimension = 1.0f;
@@ -561,20 +514,48 @@ namespace vertexload
     glEnable( GL_DEPTH_TEST );
     glEnable( GL_CULL_FACE );
     glFrontFace( GL_CCW );
-
-    TwBar *bar = TwNewBar("mainbar");
-    TwDefine(" GLOBAL contained=true help='OpenGL samples.\nCopyright NVIDIA Corporation 2014' ");
-    TwDefine(" mainbar position='0 0' size='350 200' color='0 0 0' alpha=128 valueswidth=170 ");
-    TwDefine((std::string(" mainbar label='") + PROJECT_NAME + "'").c_str());
-
-    TwAddVarRW(bar, "loadFactor",  TW_TYPE_UINT16,  &m_tweak.m_loadFactor  , nullptr);
-    TwAddVarRW(bar, "multicast",   TW_TYPE_BOOL8,  &m_tweak.m_multicast,    nullptr);
-
+    
     return validated;
+  }
+
+  void Sample::processUI(double time)
+  {
+    int width = m_window.m_viewsize[0];
+    int height = m_window.m_viewsize[1];
+
+    // Update imgui configuration
+    auto &imgui_io = ImGui::GetIO();
+    imgui_io.DeltaTime = static_cast<float>(time - m_rd.m_uiTime);
+    imgui_io.DisplaySize = ImVec2(width, height);
+
+    m_rd.m_uiTime = time;
+
+    ImGui::NewFrame();
+    ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(350, 0), ImGuiCond_FirstUseEver);
+
+    if (ImGui::Begin("NVIDIA " PROJECT_NAME, nullptr)) {
+      ImGui::PushItemWidth(150);
+
+      ImGui::InputInt("loadFactor", &m_rd.m_uiData.m_loadFactor, 1, 10);
+      ImGui::Checkbox("multicast", &m_rd.m_uiData.m_multicast);
+      if (m_rd.m_uiData.m_multicast)
+      {
+        ImGui::Checkbox("multicast copy", &m_rd.m_uiData.m_multicastCopy);
+        ImGui::Checkbox("multicast blit", &m_rd.m_uiData.m_multicastBlit);
+      }
+      ImGui::End();
+    }
   }
 
   void Sample::think(double time)
   {
+    processUI(time);
+
+    // detect ui data changes here
+
+    m_rd.m_lastUIData = m_rd.m_uiData;
+
     // handle mouse input
     m_control.processActions(m_window.m_viewsize,
       nv_math::vec2f(m_window.m_mouseCurrent[0],m_window.m_mouseCurrent[1]),
@@ -583,49 +564,22 @@ namespace vertexload
     // handle keyboard inputs, change number of objects
     if( m_window.onPress(KEY_UP) )
     {
-      m_tweak.m_loadFactor += SAMPLE_LOAD;
-      std::cout << "loadFactor: " << m_tweak.m_loadFactor << std::endl;
+      m_rd.m_uiData.m_loadFactor += SAMPLE_LOAD;
+      std::cout << "loadFactor: " << m_rd.m_uiData.m_loadFactor << std::endl;
     }
     if( m_window.onPress(KEY_DOWN) )
     {
-      if( m_tweak.m_loadFactor > SAMPLE_LOAD )
+      if(m_rd.m_uiData.m_loadFactor > SAMPLE_LOAD )
       {
-        m_tweak.m_loadFactor -= SAMPLE_LOAD;
+        m_rd.m_uiData.m_loadFactor -= SAMPLE_LOAD;
       }
-      std::cout << "loadFactor: " << m_tweak.m_loadFactor << std::endl;
+      std::cout << "loadFactor: " << m_rd.m_uiData.m_loadFactor << std::endl;
     }
     if( m_window.onPress(KEY_SPACE) )
     {
-      m_tweak.m_multicast = m_tweak.m_multicast?0:1;
-      std::cout << "multicast " << (m_tweak.m_multicast?"en":"dis") << "abled\n";
+      m_rd.m_uiData.m_drawUI = !m_rd.m_uiData.m_drawUI;
     }
-
-
-#if BENCHMARK_MODE
-    static double timeBegin = sysGetTime();
-    static double frames = 0;
-
-    ++frames;
-    double timeCurrent = sysGetTime();
-    double timeDelta = timeCurrent - timeBegin;
-    if( timeDelta > 5.0 )
-    {
-      std::cout << timeDelta*1000.0/frames << "\n";
-      if( m_tweak.m_loadFactor < SAMPLE_LOAD*20 )
-      {
-        m_tweak.m_loadFactor += SAMPLE_LOAD;
-      }
-      else
-      {
-        std::cout << "---------\nloadfactors from " << SAMPLE_LOAD << " .. " << SAMPLE_LOAD*20 << " :\n";
-        m_tweak.m_loadFactor = SAMPLE_LOAD;
-      }
-
-      frames = 0;
-      timeBegin = timeCurrent;
-    }
-#endif
-
+    
     ++m_frameCount;
 
     // use the windows width and height here to make sure the aspect ratio in the output image is correct
@@ -653,12 +607,12 @@ namespace vertexload
     m_rd.sceneData.eyepos_world   = eyePos_world;
     m_rd.sceneData.eyePos_view    = eyePos_view;
     m_rd.sceneData.color          = background;
-    m_rd.sceneData.loadFactor     = m_tweak.m_loadFactor;
+    m_rd.sceneData.loadFactor     = m_rd.m_uiData.m_loadFactor;
     m_rd.sceneData.objectColor    = vec3f(0.75f);
 
     // upload scene data with gray color to both GPUs with a normal buffer upload
-    // this is not really necessary, but shows gray when the multicast buffer uploads fail
-    glNamedBufferSubDataEXT( m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
+    // this is not really necessary, but shows gray should the multicast buffer uploads fail
+    glNamedBufferSubData( m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
 
     // bind scene data UBO
     glBindBufferBase(GL_UNIFORM_BUFFER, UBO_SCENE, m_rd.buf.sceneUbo);
@@ -671,18 +625,19 @@ namespace vertexload
     glViewport(0, 0, m_rd.texWidth, m_rd.texHeight);
     glUseProgram( m_rd.pm.get( m_rd.prog.scene ) );
 
-    // MULTICAST
-    if( m_tweak.m_multicast )
+
+    // GL_NV_gpu_multicast
+    if (m_rd.m_uiData.m_multicast)
     {
       // render into left texture on both GPUs, generating both images with one render call
       // then copy the left texture of GPU1 into the right texture on GPU0
 
       // set & upload scene data with blue object color for GPU0
       m_rd.sceneData.objectColor = vec3f(0.0f, 0.0f, 1.0f);
-      glLGPUNamedBufferSubDataNVX( GPUMASK_0, m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
+      glMulticastBufferSubDataNV( GPUMASK_0, m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
       // set & upload scene data with red object color for GPU1
       m_rd.sceneData.objectColor = vec3f(1.0f, 0.0f, 0.0f);
-      glLGPUNamedBufferSubDataNVX( GPUMASK_1, m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
+      glMulticastBufferSubDataNV( GPUMASK_1, m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
 
       // use left texture as render target
       glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_rd.tex.colorTexLeft, 0 );
@@ -690,16 +645,22 @@ namespace vertexload
       glClearBufferfv( GL_DEPTH, 0, &depth );
 
       // render tori into left texture
-      renderTori( m_rd, m_tweak.m_loadFactor, m_rd.windowWidth/2, m_rd.windowHeight, view );
+      renderTori( m_rd, m_rd.m_uiData.m_loadFactor, m_rd.windowWidth/2, m_rd.windowHeight, view );
 
-      // this interlock makes sure colorTexRight is not still used by the previous frame's draw
-      glLGPUInterlockNVX();
-
-      // copy the left texture on GPU 1 to the right texture on GPU 0
-      glLGPUCopyImageSubDataNVX(1, GPUMASK_0, m_rd.tex.colorTexLeft, GL_TEXTURE_2D, 0, 0, 0, 0, m_rd.tex.colorTexRight, GL_TEXTURE_2D, 0, 0, 0, 0, m_rd.texWidth, m_rd.texHeight, 1);
-
-      // this interlock makes sure colorTexRight is complete and safe to use in the subsequent composition draw
-      glLGPUInterlockNVX();
+      if (m_rd.m_uiData.m_multicast && m_rd.m_uiData.m_multicastCopy)
+      {
+        // this interlock makes sure colorTexRight is not still used by the previous frame's draw
+        // this is unlikely if the swap chain is long enough and might be impossible depending on other 
+        // syncs in the frame, so it can get skipped here.
+        // glMulticastBarrierNV();
+        
+        // copy the left texture on GPU 1 to the right texture on GPU 0
+        glMulticastCopyImageSubDataNV(1, GPUMASK_0, m_rd.tex.colorTexLeft, GL_TEXTURE_2D, 0, 0, 0, 0, m_rd.tex.colorTexRight, GL_TEXTURE_2D, 0, 0, 0, 0, m_rd.texWidth, m_rd.texHeight, 1);
+        
+        // Let GPU 0 wait for the copy from GPU 1: this can be done by a barrier or by an explicit sync.
+        // Note that the spec ensures that the copy is synced with the source GPU automatically
+        glMulticastWaitSyncNV( 1, GPUMASK_0 );
+      }
     }
     else
     {
@@ -707,7 +668,7 @@ namespace vertexload
 
       // set & upload scene data with blue object color for the first image
       m_rd.sceneData.objectColor = vec3f(0.0f, 0.0f, 1.0f);
-      glNamedBufferSubDataEXT( m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
+      glNamedBufferSubData( m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
 
       // use left texture as render target
       glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_rd.tex.colorTexLeft, 0 );
@@ -715,11 +676,11 @@ namespace vertexload
       glClearBufferfv( GL_DEPTH, 0, &depth );
 
       // render tori into left texture
-      renderTori( m_rd, m_tweak.m_loadFactor, m_rd.windowWidth/2, m_rd.windowHeight, view );
+      renderTori( m_rd, m_rd.m_uiData.m_loadFactor, m_rd.windowWidth/2, m_rd.windowHeight, view );
 
       // set & upload scene data with red object color for second image
       m_rd.sceneData.objectColor = vec3f(1.0f, 0.0f, 0.0f);
-      glNamedBufferSubDataEXT( m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
+      glNamedBufferSubData( m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData );
 
       // use right texture as render target
       glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_rd.tex.colorTexRight, 0 );
@@ -727,41 +688,83 @@ namespace vertexload
       glClearBufferfv( GL_DEPTH, 0, &depth );
 
       // render tori into right texture
-      renderTori( m_rd, m_tweak.m_loadFactor, m_rd.windowWidth/2, m_rd.windowHeight, view );
-      }
+      renderTori( m_rd, m_rd.m_uiData.m_loadFactor, m_rd.windowWidth/2, m_rd.windowHeight, view );
+    }
 
-
-
-    // at this point we have a blue render in the left and a red render in the right texture
-    // independent of the rendering technique
-
+    // At this point we have a blue render in the left and a red render in the right texture
+    // independent of the rendering technique unless the VR SLI copy will get implemented
+    // by a framebuffer blit at the end. In that case, both GPUs still hold the rendering in 
+    // the "left" texture. In this case both GPUs have to render the offscreen texture to the 
+    // framebuffer to make the blit possible, otherwise this render pass can get omitted 
+    // on GPU 1, which is done by setting the rendermask below:
+    if(m_rd.m_uiData.m_multicast && !m_rd.m_uiData.m_multicastBlit )
+    {
+      // The next draw commands (combining the textures and the UI) are only needed to get performed on GPU 0:
+      glRenderGpuMaskNV( GPUMASK_0 );
+    }
 
     // render into backbuffer
     glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-
+    
     // render complete viewport
     glViewport(0, 0, m_rd.windowWidth, m_rd.windowHeight);
     glUseProgram( m_rd.pm.get( m_rd.prog.compose ) );
-
+    
     // set & upload compose data 
     m_rd.composeData.out_width  = m_rd.windowWidth;
     m_rd.composeData.out_height = m_rd.windowHeight;
     m_rd.composeData.in_width   = m_rd.texWidth;
     m_rd.composeData.in_height  = m_rd.texHeight;
-    glNamedBufferSubDataEXT( m_rd.buf.composeUbo, 0, sizeof(ComposeData), &m_rd.composeData );
+    glNamedBufferSubData( m_rd.buf.composeUbo, 0, sizeof(ComposeData), &m_rd.composeData );
     glBindBufferBase( GL_UNIFORM_BUFFER, UBO_COMP, m_rd.buf.composeUbo );
 
     // use rendered textures as input textures
-    glBindMultiTextureEXT( GL_TEXTURE0 + 0, GL_TEXTURE_2D, m_rd.tex.colorTexLeft );
-    glBindMultiTextureEXT( GL_TEXTURE0 + 1, GL_TEXTURE_2D, m_rd.tex.colorTexRight );
-
+    nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + 0, GL_TEXTURE_2D, m_rd.tex.colorTexLeft);
+    nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + 1, GL_TEXTURE_2D, m_rd.tex.colorTexRight);
+    
     glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-
     // render one triangle covering the whole viewport
     glDrawArrays( GL_TRIANGLES, 0, 3 );
 
-    TwDraw();
+    if (m_rd.m_uiData.m_multicast && m_rd.m_uiData.m_multicastBlit)
+    {
+      // blit from GPU 1 to 0
+      // It's an alternative to copying the textures if the final result should get merged.
+      // source image is left on GPU 1 but should be right on GPU 0
+      // In a blit the target GPU copies the data from the source, so the target has to wait
+      // explicitly for the source to make sure everything was rendered to it:
+      glMulticastWaitSyncNV( 1, GPUMASK_0 );
+
+      glMulticastBlitFramebufferNV( 1, 0, 
+        0,                  0, m_rd.windowWidth/2, m_rd.windowHeight,
+        m_rd.windowWidth/2, 0, m_rd.windowWidth,   m_rd.windowHeight,
+        GL_COLOR_BUFFER_BIT, GL_NEAREST );
+
+      // Let GPU 1 wait for the blit to GPU 0: this can be done by a barrier:
+      //  glMulticastBarrierNV();
+      // or by an explicit sync:
+      //  glMulticastWaitSyncNV( 0, GPUMASK_1 );
+      // *but* as in this case the next draw commands (the UI) are only 
+      // useful on GPU 0, rendering on all other GPUs gets deactivated and the
+      // sync can wait until the rendering gets reactivated on those GPUs!
+      glRenderGpuMaskNV( GPUMASK_0 );
+    }
+
+    if (m_rd.m_uiData.m_drawUI)
+    {
+      NV_PROFILE_SECTION("draw ui");
+      ImGui::Render();
+      ImGui::RenderDrawDataGL(ImGui::GetDrawData());
+    }
+
+    ImGui::EndFrame();
+
+    if (m_rd.m_uiData.m_multicast)
+    {
+      glMulticastWaitSyncNV( 0, GPUMASK_1 );
+      glRenderGpuMaskNV( GPUMASK_0 | GPUMASK_1 );
+    }
   }
 
   void Sample::resize(int width, int height)
@@ -775,8 +778,6 @@ namespace vertexload
     m_rd.texHeight = height;
 
     initTextures( m_rd );
-
-    TwWindowSize(width, height);
   }
 
   void Sample::end()
@@ -796,11 +797,11 @@ namespace vertexload
     nv_helpers_gl::deleteFramebuffer( m_rd.renderFBO );
     nv_helpers_gl::deleteFramebuffer( m_rd.tempFBO );
   }
-
 }//namespace
 
 int sample_main(int argc, const char** argv)
 {
+  SETLOGFILENAME();
   vertexload::Sample sample;
   return sample.run(
     PROJECT_NAME,
