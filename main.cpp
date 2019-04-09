@@ -33,19 +33,19 @@
 #include <imgui/imgui_helper.h>
 #include <imgui/imgui_impl_gl.h>
 
-#include <nv_helpers/cameracontrol.hpp>
-#include <nv_helpers/geometry.hpp>
-#include <nv_helpers_gl/base_gl.hpp>
-#include <nv_helpers_gl/programmanager_gl.hpp>
-#include <nv_helpers_gl/appwindowprofiler_gl.hpp>
-#include <nv_math/nv_math_glsltypes.h>
+#include <nvh/cameracontrol.hpp>
+#include <nvh/geometry.hpp>
+#include <nvgl/base_gl.hpp>
+#include <nvgl/programmanager_gl.hpp>
+#include <nvgl/appwindowprofiler_gl.hpp>
+#include <nvmath/nvmath_glsltypes.h>
 
 #include <chrono>
 #include <iostream>
 #include <locale>
 #include <thread>
 
-using namespace nv_math;
+using namespace nvmath;
 #include "common.h"
 
 namespace
@@ -76,15 +76,15 @@ namespace vertexload
     };
 
     struct Vertex {
-      Vertex(const nv_helpers::geometry::Vertex& vertex){
+      Vertex(const nvh::geometry::Vertex& vertex){
         position  = vertex.position;
         normal    = vertex.normal;
-        color     = nv_math::vec4(1.0f);
+        color     = nvmath::vec4(1.0f);
       }
 
-      nv_math::vec4   position;
-      nv_math::vec4   normal;
-      nv_math::vec4   color;
+      nvmath::vec4   position;
+      nvmath::vec4   normal;
+      nvmath::vec4   color;
     };
 
     struct Buffers
@@ -124,8 +124,8 @@ namespace vertexload
 
     struct Programs
     {
-      nv_helpers_gl::ProgramManager::ProgramID scene;
-      nv_helpers_gl::ProgramManager::ProgramID compose;
+      nvgl::ProgramManager::ProgramID scene;
+      nvgl::ProgramManager::ProgramID compose;
     };
 
     struct Data
@@ -156,7 +156,7 @@ namespace vertexload
       GLuint renderFBO;
       GLuint tempFBO;
 
-      nv_helpers_gl::ProgramManager pm;
+      nvgl::ProgramManager pm;
 
       int numGPUs;
       int windowWidth;
@@ -167,26 +167,26 @@ namespace vertexload
 
     auto initPrograms( Data& rd ) -> bool
     {
-      nv_helpers_gl::ProgramManager& pm = rd.pm;
+      nvgl::ProgramManager& pm = rd.pm;
       Programs& programs = rd.prog;
 
       bool validated(true);
       pm.addDirectory( std::string("GLSL_" PROJECT_NAME) );
       pm.addDirectory( NVPWindow::sysExePath() + std::string(PROJECT_RELDIRECTORY) );
-      pm.addDirectory( std::string(PROJECT_ABSDIRECTORY) );
+      //pm.addDirectory( std::string(PROJECT_ABSDIRECTORY) );
 
       pm.registerInclude("common.h", "common.h");
 
       {
         programs.scene = pm.createProgram(
-          nv_helpers_gl::ProgramManager::Definition(GL_VERTEX_SHADER,   "#define USE_SCENE_DATA", "scene.vert.glsl"),
-          nv_helpers_gl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_SCENE_DATA", "scene.frag.glsl"));
+          nvgl::ProgramManager::Definition(GL_VERTEX_SHADER,   "#define USE_SCENE_DATA", "scene.vert.glsl"),
+          nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_SCENE_DATA", "scene.frag.glsl"));
       }
 
       {
         programs.compose = pm.createProgram(
-          nv_helpers_gl::ProgramManager::Definition(GL_VERTEX_SHADER,   "#define USE_COMPOSE_DATA", "compose.vert.glsl"),
-          nv_helpers_gl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_COMPOSE_DATA", "compose.frag.glsl"));
+          nvgl::ProgramManager::Definition(GL_VERTEX_SHADER,   "#define USE_COMPOSE_DATA", "compose.vert.glsl"),
+          nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_COMPOSE_DATA", "compose.frag.glsl"));
       }
 
       validated = pm.areProgramsValid();
@@ -195,8 +195,8 @@ namespace vertexload
 
     auto initFBOs( Data& rd ) -> void
     {
-      nv_helpers_gl::newFramebuffer( rd.renderFBO );
-      nv_helpers_gl::newFramebuffer( rd.tempFBO );
+      nvgl::newFramebuffer( rd.renderFBO );
+      nvgl::newFramebuffer( rd.tempFBO );
     }
 
     auto initBuffers( Data& rd ) -> void
@@ -210,11 +210,11 @@ namespace vertexload
         float innerRadius = 0.8f;
         float outerRadius = 0.2f;
 
-        std::vector< nv_math::vec3 > vertices;
-        std::vector< nv_math::vec3 > tangents;
-        std::vector< nv_math::vec3 > binormals;
-        std::vector< nv_math::vec3 > normals;
-        std::vector< nv_math::vec2 > texcoords;
+        std::vector< nvmath::vec3 > vertices;
+        std::vector< nvmath::vec3 > tangents;
+        std::vector< nvmath::vec3 > binormals;
+        std::vector< nvmath::vec3 > normals;
+        std::vector< nvmath::vec2 > texcoords;
         std::vector<unsigned int> indices;
 
         unsigned int size_v = ( m + 1 ) * ( n + 1 );
@@ -248,21 +248,21 @@ namespace vertexload
             float sinPhi = sinf(phi);
             float cosPhi = cosf(phi);
 
-            vertices.push_back( nv_math::vec3( radius      *  cosPhi, 
+            vertices.push_back( nvmath::vec3( radius      *  cosPhi, 
               outerRadius *  sinTheta, 
               radius      * -sinPhi ) );
 
-            tangents.push_back( nv_math::vec3( -sinPhi, 0.0f, -cosPhi ) );
+            tangents.push_back( nvmath::vec3( -sinPhi, 0.0f, -cosPhi ) );
 
-            binormals.push_back( nv_math::vec3( cosPhi * -sinTheta,
+            binormals.push_back( nvmath::vec3( cosPhi * -sinTheta,
               cosTheta, 
               sinPhi * sinTheta ) );
 
-            normals.push_back( nv_math::vec3( cosPhi * cosTheta,
+            normals.push_back( nvmath::vec3( cosPhi * cosTheta,
               sinTheta,  
               -sinPhi * cosTheta ) );
 
-            texcoords.push_back( nv_math::vec2( (float) longitude / mf , (float) latitude / nf ) );
+            texcoords.push_back( nvmath::vec2( (float) longitude / mf , (float) latitude / nf ) );
           }
         }
 
@@ -291,14 +291,14 @@ namespace vertexload
         buffers.numIndices = static_cast<GLsizei>(indices.size());
         GLsizeiptr sizeIndexData = indices.size() * sizeof(indices[0]);
 
-        nv_helpers_gl::newBuffer( buffers.vbo );
+        nvgl::newBuffer( buffers.vbo );
         glBindBuffer   ( GL_ARRAY_BUFFER, buffers.vbo );
         glBufferData   ( GL_ARRAY_BUFFER, sizePositionAttributeData + sizeNormalAttributeData, nullptr , GL_STATIC_DRAW );
         glBufferSubData( GL_ARRAY_BUFFER, 0                        , sizePositionAttributeData, &vertices[0] );
         glBufferSubData( GL_ARRAY_BUFFER, sizePositionAttributeData, sizeNormalAttributeData,   &normals[0] );
         glBindBuffer   ( GL_ARRAY_BUFFER, 0 );
 
-        nv_helpers_gl::newBuffer( buffers.ibo );
+        nvgl::newBuffer( buffers.ibo );
         glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, buffers.ibo );
         glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeIndexData, &indices[0], GL_STATIC_DRAW );
         glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
@@ -307,16 +307,16 @@ namespace vertexload
 
       // GL_NV_gpu_multicast
       // need to mark UBOs GL_PER_GPU_STORAGE_BIT_NV to make sure they can contain different data per GPU
-      nv_helpers_gl::newBuffer( buffers.sceneUbo );
+      nvgl::newBuffer( buffers.sceneUbo );
       glNamedBufferStorage( buffers.sceneUbo, sizeof(SceneData), nullptr, GL_DYNAMIC_STORAGE_BIT|GL_PER_GPU_STORAGE_BIT_NV );
 
 
-      nv_helpers_gl::newBuffer( buffers.objectUbo );
+      nvgl::newBuffer( buffers.objectUbo );
       glBindBuffer( GL_UNIFORM_BUFFER, buffers.objectUbo );
       glBufferData( GL_UNIFORM_BUFFER, sizeof(ObjectData), nullptr, GL_DYNAMIC_DRAW );
       glBindBuffer( GL_UNIFORM_BUFFER, 0 );
 
-      nv_helpers_gl::newBuffer( buffers.composeUbo );
+      nvgl::newBuffer( buffers.composeUbo );
       glBindBuffer( GL_UNIFORM_BUFFER, buffers.composeUbo );
       glBufferData( GL_UNIFORM_BUFFER, sizeof(ComposeData), nullptr, GL_DYNAMIC_DRAW );
       glBindBuffer( GL_UNIFORM_BUFFER, 0 );
@@ -326,7 +326,7 @@ namespace vertexload
     {
       auto newTex = [&]( GLuint& tex )
       {
-        nv_helpers_gl::newTexture( tex, GL_TEXTURE_2D );
+        nvgl::newTexture( tex, GL_TEXTURE_2D );
         glBindTexture ( GL_TEXTURE_2D, tex );
         glTexStorage2D( GL_TEXTURE_2D, 1, GL_RGBA8, rd.texWidth, rd.texHeight );
         glBindTexture ( GL_TEXTURE_2D, 0);
@@ -346,7 +346,7 @@ namespace vertexload
       newTex( rd.tex.colorTexLeft );
       newTex( rd.tex.colorTexRight );
 
-      nv_helpers_gl::newTexture(rd.tex.depthTex, GL_TEXTURE_2D);
+      nvgl::newTexture(rd.tex.depthTex, GL_TEXTURE_2D);
       glBindTexture  ( GL_TEXTURE_2D, rd.tex.depthTex );
       glTexStorage2D ( GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT24, rd.texWidth, rd.texHeight);
       glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
@@ -398,13 +398,13 @@ namespace vertexload
         {
           float y = y0 + i * dy;
           float x = x0 + j * dx;
-          rd.objectData.model = nv_math::scale_mat4( nv_math::vec3(scale) ) * nv_math::translation_mat4( nv_math::vec3( x, y, 0.0f ) ) * nv_math::rotation_mat4_x( (j%2?-1.0f:1.0f) * 45.0f * nv_pi/180.0f );
+          rd.objectData.model = nvmath::scale_mat4( nvmath::vec3(scale) ) * nvmath::translation_mat4( nvmath::vec3( x, y, 0.0f ) ) * nvmath::rotation_mat4_x( (j%2?-1.0f:1.0f) * 45.0f * nv_pi/180.0f );
 
           rd.objectData.modelView = view * rd.objectData.model;
-          rd.objectData.modelViewIT = nv_math::transpose(nv_math::invert(rd.objectData.modelView));
+          rd.objectData.modelViewIT = nvmath::transpose(nvmath::invert(rd.objectData.modelView));
           rd.objectData.modelViewProj = rd.sceneData.viewProjMatrix * rd.objectData.model;
 
-          rd.objectData.color = nv_math::vec3f( (torusIndex+1)&1, ((torusIndex+1)&2)/2, ((torusIndex+1)&4)/4 );
+          rd.objectData.color = nvmath::vec3f( (torusIndex+1)&1, ((torusIndex+1)&2)/2, ((torusIndex+1)&4)/4 );
 
           // set model UBO
           glNamedBufferSubData( rd.buf.objectUbo, 0, sizeof(ObjectData), &rd.objectData );
@@ -424,7 +424,7 @@ namespace vertexload
     }
   } //namespace render
 
-  class Sample : public nv_helpers_gl::AppWindowProfilerGL {
+  class Sample : public nvgl::AppWindowProfilerGL {
   public:
     Sample();
 
@@ -434,7 +434,7 @@ namespace vertexload
     void resize(int width, int height);
     void end();
 
-    // return true to prevent m_window updates
+    // return true to prevent m_windowState updates
     bool mouse_pos(int x, int y) {
       if (!m_rd.m_uiData.m_drawUI) return false;
       return ImGuiH::mouse_pos(x, y);
@@ -457,13 +457,13 @@ namespace vertexload
     }
 
   protected:    
-    nv_helpers::CameraControl m_control;
+    nvh::CameraControl m_control;
     size_t                    m_frameCount;
     render::Data              m_rd;
   };
 
   Sample::Sample()
-    : nv_helpers_gl::AppWindowProfilerGL( /*singleThreaded=*/true, /*doSwap=*/true )
+    : nvgl::AppWindowProfilerGL( /*singleThreaded=*/true, /*doSwap=*/true )
     , m_frameCount( 0 )
   {
     // set the environment variable GL_NV_gpu_multicast to tell the driver to switch to multicast mode
@@ -476,10 +476,11 @@ namespace vertexload
     std::locale::global(std::locale(""));
     std::cout.imbue(std::locale());
 
-    ImGuiH::Init(m_window.m_viewsize[0], m_window.m_viewsize[1], this);
+    ImGuiH::Init(m_windowState.m_viewSize[0], m_windowState.m_viewSize[1], this);
     ImGui::InitGL();
 
-    vsync( false );
+#pragma message(__FILE__ "(483): Fix the vsync()")
+    //vsync( false );
     
     bool validated( true );
 
@@ -498,9 +499,9 @@ namespace vertexload
     std::cout << "GPUs found: " << m_rd.numGPUs << "\n";
     
     // control setup
-    m_control.m_sceneOrbit = nv_math::vec3(0.0f);
+    m_control.m_sceneOrbit = nvmath::vec3(0.0f);
     m_control.m_sceneDimension = 1.0f;
-    m_control.m_viewMatrix = nv_math::look_at(m_control.m_sceneOrbit - vec3( 0, 0 ,-m_control.m_sceneDimension ), m_control.m_sceneOrbit, vec3(0,1,0));
+    m_control.m_viewMatrix = nvmath::look_at(m_control.m_sceneOrbit - vec3( 0, 0 ,-m_control.m_sceneDimension ), m_control.m_sceneOrbit, vec3(0,1,0));
 
     render::initPrograms( m_rd );
     render::initFBOs( m_rd );
@@ -520,8 +521,8 @@ namespace vertexload
 
   void Sample::processUI(double time)
   {
-    int width = m_window.m_viewsize[0];
-    int height = m_window.m_viewsize[1];
+    int width = m_windowState.m_viewSize[0];
+    int height = m_windowState.m_viewSize[1];
 
     // Update imgui configuration
     auto &imgui_io = ImGui::GetIO();
@@ -550,6 +551,8 @@ namespace vertexload
 
   void Sample::think(double time)
   {
+    NV_PROFILE_GL_SECTION("Frame");
+
     processUI(time);
 
     // detect ui data changes here
@@ -557,17 +560,17 @@ namespace vertexload
     m_rd.m_lastUIData = m_rd.m_uiData;
 
     // handle mouse input
-    m_control.processActions(m_window.m_viewsize,
-      nv_math::vec2f(m_window.m_mouseCurrent[0],m_window.m_mouseCurrent[1]),
-      m_window.m_mouseButtonFlags, m_window.m_wheel);
+    m_control.processActions(m_windowState.m_viewSize,
+      nvmath::vec2f(m_windowState.m_mouseCurrent[0],m_windowState.m_mouseCurrent[1]),
+      m_windowState.m_mouseButtonFlags, m_windowState.m_mouseWheel);
 
     // handle keyboard inputs, change number of objects
-    if( m_window.onPress(KEY_UP) )
+    if( m_windowState.onPress(KEY_UP) )
     {
       m_rd.m_uiData.m_loadFactor += SAMPLE_LOAD;
       std::cout << "loadFactor: " << m_rd.m_uiData.m_loadFactor << std::endl;
     }
-    if( m_window.onPress(KEY_DOWN) )
+    if( m_windowState.onPress(KEY_DOWN) )
     {
       if(m_rd.m_uiData.m_loadFactor > SAMPLE_LOAD )
       {
@@ -575,7 +578,7 @@ namespace vertexload
       }
       std::cout << "loadFactor: " << m_rd.m_uiData.m_loadFactor << std::endl;
     }
-    if( m_window.onPress(KEY_SPACE) )
+    if( m_windowState.onPress(KEY_SPACE) )
     {
       m_rd.m_uiData.m_drawUI = !m_rd.m_uiData.m_drawUI;
     }
@@ -719,8 +722,8 @@ namespace vertexload
     glBindBufferBase( GL_UNIFORM_BUFFER, UBO_COMP, m_rd.buf.composeUbo );
 
     // use rendered textures as input textures
-    nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + 0, GL_TEXTURE_2D, m_rd.tex.colorTexLeft);
-    nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + 1, GL_TEXTURE_2D, m_rd.tex.colorTexRight);
+    nvgl::bindMultiTexture(GL_TEXTURE0 + 0, GL_TEXTURE_2D, m_rd.tex.colorTexLeft);
+    nvgl::bindMultiTexture(GL_TEXTURE0 + 1, GL_TEXTURE_2D, m_rd.tex.colorTexRight);
     
     glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
@@ -753,7 +756,7 @@ namespace vertexload
 
     if (m_rd.m_uiData.m_drawUI)
     {
-      NV_PROFILE_SECTION("draw ui");
+      NV_PROFILE_GL_SECTION("draw ui");
       ImGui::Render();
       ImGui::RenderDrawDataGL(ImGui::GetDrawData());
     }
@@ -769,8 +772,8 @@ namespace vertexload
 
   void Sample::resize(int width, int height)
   {
-    m_window.m_viewsize[0] = width;
-    m_window.m_viewsize[1] = height;
+    m_windowState.m_viewSize[0] = width;
+    m_windowState.m_viewSize[1] = height;
 
     m_rd.windowWidth = width;
     m_rd.windowHeight = height;
@@ -782,34 +785,31 @@ namespace vertexload
 
   void Sample::end()
   {
-    nv_helpers_gl::deleteBuffer( m_rd.buf.vbo );
-    nv_helpers_gl::deleteBuffer( m_rd.buf.ibo );
-    nv_helpers_gl::deleteBuffer( m_rd.buf.sceneUbo );
-    nv_helpers_gl::deleteBuffer( m_rd.buf.objectUbo );
-    nv_helpers_gl::deleteBuffer( m_rd.buf.composeUbo );
+    nvgl::deleteBuffer( m_rd.buf.vbo );
+    nvgl::deleteBuffer( m_rd.buf.ibo );
+    nvgl::deleteBuffer( m_rd.buf.sceneUbo );
+    nvgl::deleteBuffer( m_rd.buf.objectUbo );
+    nvgl::deleteBuffer( m_rd.buf.composeUbo );
 
-    nv_helpers_gl::deleteTexture( m_rd.tex.colorTexLeft );
-    nv_helpers_gl::deleteTexture( m_rd.tex.colorTexRight );
-    nv_helpers_gl::deleteTexture( m_rd.tex.depthTex );
+    nvgl::deleteTexture( m_rd.tex.colorTexLeft );
+    nvgl::deleteTexture( m_rd.tex.colorTexRight );
+    nvgl::deleteTexture( m_rd.tex.depthTex );
 
     m_rd.pm.deletePrograms();
 
-    nv_helpers_gl::deleteFramebuffer( m_rd.renderFBO );
-    nv_helpers_gl::deleteFramebuffer( m_rd.tempFBO );
+    nvgl::deleteFramebuffer( m_rd.renderFBO );
+    nvgl::deleteFramebuffer( m_rd.tempFBO );
   }
 }//namespace
 
-int sample_main(int argc, const char** argv)
+int main(int argc, const char** argv)
 {
-  SETLOGFILENAME();
+  NVPWindow::System system(argv[0], PROJECT_NAME);
+
   vertexload::Sample sample;
   return sample.run(
     PROJECT_NAME,
     argc, argv,
-    SAMPLE_SIZE_WIDTH, SAMPLE_SIZE_HEIGHT, 
-    SAMPLE_MAJOR_VERSION, SAMPLE_MINOR_VERSION);
+    SAMPLE_SIZE_WIDTH, SAMPLE_SIZE_HEIGHT);
 }
-
-void sample_print(int level, const char * fmt)
-{}
 
