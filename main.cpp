@@ -124,8 +124,8 @@ namespace vertexload
 
     struct Programs
     {
-      nvgl::ProgramManager::ProgramID scene;
-      nvgl::ProgramManager::ProgramID compose;
+      nvgl::ProgramID scene;
+      nvgl::ProgramID compose;
     };
 
     struct Data
@@ -172,7 +172,7 @@ namespace vertexload
 
       bool validated(true);
       pm.addDirectory( std::string("GLSL_" PROJECT_NAME) );
-      pm.addDirectory( NVPWindow::sysExePath() + std::string(PROJECT_RELDIRECTORY) );
+      pm.addDirectory( NVPSystem::exePath() + std::string(PROJECT_RELDIRECTORY) );
       //pm.addDirectory( std::string(PROJECT_ABSDIRECTORY) );
 
       pm.registerInclude("common.h", "common.h");
@@ -804,7 +804,7 @@ namespace vertexload
 
 int main(int argc, const char** argv)
 {
-  NVPWindow::System system(argv[0], PROJECT_NAME);
+  NVPSystem system(argv[0], PROJECT_NAME);
 
   vertexload::Sample sample;
   return sample.run(
