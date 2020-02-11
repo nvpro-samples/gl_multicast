@@ -28,7 +28,6 @@
 /* Contact iesser@nvidia.com (Ingo Esser) for feedback */
 
 #include <include_gl.h>
-#include <windows.h>
 
 #include <imgui/imgui_helper.h>
 #include <imgui/imgui_impl_gl.h>
