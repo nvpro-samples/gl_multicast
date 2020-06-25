@@ -172,7 +172,6 @@ namespace vertexload
       bool validated(true);
       pm.addDirectory( std::string("GLSL_" PROJECT_NAME) );
       pm.addDirectory( NVPSystem::exePath() + std::string(PROJECT_RELDIRECTORY) );
-      //pm.addDirectory( std::string(PROJECT_ABSDIRECTORY) );
 
       pm.registerInclude("common.h", "common.h");
 
