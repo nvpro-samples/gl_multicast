@@ -474,7 +474,7 @@ namespace vertexload
     std::locale::global(std::locale(""));
     std::cout.imbue(std::locale());
 
-    ImGuiH::Init(m_windowState.m_viewSize[0], m_windowState.m_viewSize[1], this);
+    ImGuiH::Init(m_windowState.m_winSize[0], m_windowState.m_winSize[1], this);
     ImGui::InitGL();
 
 #pragma message(__FILE__ "(483): Fix the vsync()")
@@ -519,8 +519,8 @@ namespace vertexload
 
   void Sample::processUI(double time)
   {
-    int width = m_windowState.m_viewSize[0];
-    int height = m_windowState.m_viewSize[1];
+    int width = m_windowState.m_winSize[0];
+    int height = m_windowState.m_winSize[1];
 
     // Update imgui configuration
     auto &imgui_io = ImGui::GetIO();
@@ -558,7 +558,7 @@ namespace vertexload
     m_rd.m_lastUIData = m_rd.m_uiData;
 
     // handle mouse input
-    m_control.processActions(m_windowState.m_viewSize,
+    m_control.processActions(m_windowState.m_winSize,
       nvmath::vec2f(m_windowState.m_mouseCurrent[0],m_windowState.m_mouseCurrent[1]),
       m_windowState.m_mouseButtonFlags, m_windowState.m_mouseWheel);
 
@@ -770,8 +770,8 @@ namespace vertexload
 
   void Sample::resize(int width, int height)
   {
-    m_windowState.m_viewSize[0] = width;
-    m_windowState.m_viewSize[1] = height;
+    m_windowState.m_winSize[0] = width;
+    m_windowState.m_winSize[1] = height;
 
     m_rd.windowWidth = width;
     m_rd.windowHeight = height;
