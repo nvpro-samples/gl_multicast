@@ -587,19 +587,19 @@ void Sample::think(double time)
   auto proj = perspective(45.f, float(m_rd.windowWidth / 2) / float(m_rd.windowHeight), m_rd.sceneData.projNear,
                           m_rd.sceneData.projFar);
 
-  vec4f background = vec4f(118.f / 255.f, 185.f / 255.f, 0.f / 255.f, 0.f / 255.f);
+  const vec4f background = vec4f(118.f / 255.f, 185.f / 255.f, 0.f / 255.f, 0.f / 255.f);
 
   // calculate some coordinate systems
   auto  view          = m_control.m_viewMatrix;
   auto  iview         = invert(view);
   vec3f eyePos_world  = vec3f(iview(0, 3), iview(1, 3), iview(2, 3));
-  vec3f eyePos_view   = view * vec4f(eyePos_world, 1);
+  vec3f eyePos_view   = vec3f(view * vec4f(eyePos_world, 1));
   vec3f right_view    = vec3f(1.0f, 0.0f, 0.0f);
   vec3f up_view       = vec3f(0.0f, 1.0f, 0.0f);
   vec3f forward_view  = vec3f(0.0f, 0.0f, -1.0f);
-  vec3f right_world   = iview * vec4f(right_view, 0.0f);
-  vec3f up_world      = iview * vec4f(up_view, 0.0f);
-  vec3f forward_world = iview * vec4f(forward_view, 0.0f);
+  vec3f right_world   = vec3f(iview * vec4f(right_view, 0.0f));
+  vec3f up_world      = vec3f(iview * vec4f(up_view, 0.0f));
+  vec3f forward_world = vec3f(iview * vec4f(forward_view, 0.0f));
 
   // fill sceneData struct
   m_rd.sceneData.viewMatrix     = view;
@@ -608,7 +608,7 @@ void Sample::think(double time)
   m_rd.sceneData.lightPos_world = eyePos_world + right_world;
   m_rd.sceneData.eyepos_world   = eyePos_world;
   m_rd.sceneData.eyePos_view    = eyePos_view;
-  m_rd.sceneData.color          = background;
+  m_rd.sceneData.color          = vec3(background);
   m_rd.sceneData.loadFactor     = m_rd.m_uiData.m_loadFactor;
   m_rd.sceneData.objectColor    = vec3f(0.75f);
 
