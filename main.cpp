@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2014-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -463,7 +463,8 @@ Sample::Sample()
     , m_frameCount(0)
 {
   // set the environment variable GL_NV_gpu_multicast to tell the driver to switch to multicast mode
-  putenv("GL_NV_GPU_MULTICAST=1");
+  static char put_string[] = "GL_NV_GPU_MULTICAST=1";
+  putenv(put_string);
 }
 
 bool Sample::begin()
