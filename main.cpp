@@ -172,14 +172,14 @@ auto initPrograms(Data& rd) -> bool
 
   {
     programs.scene = pm.createProgram(
-        nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "#define USE_SCENE_DATA", "scene.vert.glsl"),
-        nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_SCENE_DATA", "scene.frag.glsl"));
+        nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "#define USE_SCENE_DATA\n", "scene.vert.glsl"),
+        nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_SCENE_DATA\n", "scene.frag.glsl"));
   }
 
   {
     programs.compose = pm.createProgram(
-        nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "#define USE_COMPOSE_DATA", "compose.vert.glsl"),
-        nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_COMPOSE_DATA", "compose.frag.glsl"));
+        nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "#define USE_COMPOSE_DATA\n", "compose.vert.glsl"),
+        nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_COMPOSE_DATA\n", "compose.frag.glsl"));
   }
 
   validated = pm.areProgramsValid();
