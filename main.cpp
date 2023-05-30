@@ -798,6 +798,8 @@ void Sample::end()
 
   nvgl::deleteFramebuffer(m_rd.renderFBO);
   nvgl::deleteFramebuffer(m_rd.tempFBO);
+
+  ImGuiH::Deinit();
 }
 }  // namespace vertexload
 

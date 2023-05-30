@@ -1,6 +1,34 @@
 #version 430
+
+#extension GL_ARB_shading_language_include : enable
+#include "common.h"
+
+// inputs in model space
+in layout(location = VERTEX_POS)    vec3 vertex_pos_model;
+in layout(location = VERTEX_NORMAL) vec3 normal;
+
+// outputs in view space
+out Interpolants{
+  vec3 normal;
+  vec3 eyeDir;
+  vec3 lightDir;
+} OUT;
+
+void main()
+{
+	// proj space calculations
+	gl_Position = object.modelViewProj * vec4(vertex_pos_model, 1);
+
+	// view space calculations
+	vec3 pos = (object.modelView * vec4(vertex_pos_model, 1)).xyz;
+	vec3 lightPos = (scene.viewMatrix * vec4(scene.lightPos_world, 1)).xyz;
+	OUT.normal = (object.modelViewIT * vec4(normal, 0)).xyz;
+	OUT.eyeDir = scene.eyePos_view - pos;
+	OUT.lightDir = lightPos - pos;
+}
+
 /*
- * Copyright (c) 2014-2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2014-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,5 +45,3 @@
  * SPDX-FileCopyrightText: Copyright (c) 2014-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
-
-
