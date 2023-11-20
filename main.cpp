@@ -30,14 +30,13 @@
 #include <nvgl/programmanager_gl.hpp>
 #include <nvh/cameracontrol.hpp>
 #include <nvh/geometry.hpp>
-#include <nvmath/nvmath_glsltypes.h>
 
 #include <chrono>
 #include <iostream>
 #include <locale>
 #include <thread>
 
-using namespace nvmath;
+using namespace glm;
 #include "common.h"
 
 namespace {
@@ -71,12 +70,12 @@ struct Vertex
   {
     position = vertex.position;
     normal   = vertex.normal;
-    color    = nvmath::vec4(1.0f);
+    color    = glm::vec4(1.0f);
   }
 
-  nvmath::vec4 position;
-  nvmath::vec4 normal;
-  nvmath::vec4 color;
+  glm::vec4 position;
+  glm::vec4 normal;
+  glm::vec4 color;
 };
 
 struct Buffers
@@ -171,15 +170,15 @@ auto initPrograms(Data& rd) -> bool
   pm.registerInclude("common.h", "common.h");
 
   {
-    programs.scene = pm.createProgram(
-        nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "#define USE_SCENE_DATA\n", "scene.vert.glsl"),
-        nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_SCENE_DATA\n", "scene.frag.glsl"));
+    programs.scene =
+        pm.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "#define USE_SCENE_DATA\n", "scene.vert.glsl"),
+                         nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_SCENE_DATA\n", "scene.frag.glsl"));
   }
 
   {
-    programs.compose = pm.createProgram(
-        nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "#define USE_COMPOSE_DATA\n", "compose.vert.glsl"),
-        nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_COMPOSE_DATA\n", "compose.frag.glsl"));
+    programs.compose =
+        pm.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "#define USE_COMPOSE_DATA\n", "compose.vert.glsl"),
+                         nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "#define USE_COMPOSE_DATA\n", "compose.frag.glsl"));
   }
 
   validated = pm.areProgramsValid();
@@ -203,11 +202,11 @@ auto initBuffers(Data& rd) -> void
     float        innerRadius = 0.8f;
     float        outerRadius = 0.2f;
 
-    std::vector<nvmath::vec3> vertices;
-    std::vector<nvmath::vec3> tangents;
-    std::vector<nvmath::vec3> binormals;
-    std::vector<nvmath::vec3> normals;
-    std::vector<nvmath::vec2> texcoords;
+    std::vector<glm::vec3>    vertices;
+    std::vector<glm::vec3>    tangents;
+    std::vector<glm::vec3>    binormals;
+    std::vector<glm::vec3>    normals;
+    std::vector<glm::vec2>    texcoords;
     std::vector<unsigned int> indices;
 
     unsigned int size_v = (m + 1) * (n + 1);
@@ -222,8 +221,8 @@ auto initBuffers(Data& rd) -> void
     float mf = (float)m;
     float nf = (float)n;
 
-    float phi_step   = 2.0f * nv_pi / mf;
-    float theta_step = 2.0f * nv_pi / nf;
+    float phi_step   = glm::two_pi<float>() / mf;
+    float theta_step = glm::two_pi<float>() / nf;
 
     // Setup vertices and normals
     // Generate the Torus exactly like the sphere with rings around the origin along the latitudes.
@@ -241,15 +240,15 @@ auto initBuffers(Data& rd) -> void
         float sinPhi = sinf(phi);
         float cosPhi = cosf(phi);
 
-        vertices.push_back(nvmath::vec3(radius * cosPhi, outerRadius * sinTheta, radius * -sinPhi));
+        vertices.push_back(glm::vec3(radius * cosPhi, outerRadius * sinTheta, radius * -sinPhi));
 
-        tangents.push_back(nvmath::vec3(-sinPhi, 0.0f, -cosPhi));
+        tangents.push_back(glm::vec3(-sinPhi, 0.0f, -cosPhi));
 
-        binormals.push_back(nvmath::vec3(cosPhi * -sinTheta, cosTheta, sinPhi * sinTheta));
+        binormals.push_back(glm::vec3(cosPhi * -sinTheta, cosTheta, sinPhi * sinTheta));
 
-        normals.push_back(nvmath::vec3(cosPhi * cosTheta, sinTheta, -sinPhi * cosTheta));
+        normals.push_back(glm::vec3(cosPhi * cosTheta, sinTheta, -sinPhi * cosTheta));
 
-        texcoords.push_back(nvmath::vec2((float)longitude / mf, (float)latitude / nf));
+        texcoords.push_back(glm::vec2((float)longitude / mf, (float)latitude / nf));
       }
     }
 
@@ -322,7 +321,7 @@ auto initTextures(Data& rd) -> void
     // we need to clear the textures via an FBO once to get a P2P flag - this allows texture copies between GPUs
     glBindFramebuffer(GL_FRAMEBUFFER, rd.tempFBO);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
-    glClearBufferfv(GL_COLOR, 0, &vec4f(0.0f)[0]);
+    glClearBufferfv(GL_COLOR, 0, &glm::vec4(0.0f)[0]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
   };
@@ -337,7 +336,7 @@ auto initTextures(Data& rd) -> void
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-auto renderTori(Data& rd, size_t numTori, size_t width, size_t height, mat4f view) -> void
+auto renderTori(Data& rd, size_t numTori, size_t width, size_t height, glm::mat4 view) -> void
 {
   float num = (float)numTori;
 
@@ -380,16 +379,17 @@ auto renderTori(Data& rd, size_t numTori, size_t width, size_t height, mat4f vie
   {
     for(size_t j = 0; j < numX && torusIndex < num; ++j)
     {
-      float y             = y0 + i * dy;
-      float x             = x0 + j * dx;
-      rd.objectData.model = nvmath::scale_mat4(nvmath::vec3(scale)) * nvmath::translation_mat4(nvmath::vec3(x, y, 0.0f))
-                            * nvmath::rotation_mat4_x((j % 2 ? -1.0f : 1.0f) * 45.0f * nv_pi / 180.0f);
+      float y = y0 + i * dy;
+      float x = x0 + j * dx;
+      rd.objectData.model =
+          glm::scale(glm::mat4(1.f), glm::vec3(scale)) * glm::translate(glm::mat4(1.f), glm::vec3(x, y, 0.0f))
+          * glm::rotate(glm::mat4(1.f), (j % 2 ? -1.0f : 1.0f) * 45.0f * glm::pi<float>() / 180.0f, glm::vec3(1, 0, 0));
 
       rd.objectData.modelView     = view * rd.objectData.model;
-      rd.objectData.modelViewIT   = nvmath::transpose(nvmath::invert(rd.objectData.modelView));
+      rd.objectData.modelViewIT   = glm::transpose(glm::inverse(rd.objectData.modelView));
       rd.objectData.modelViewProj = rd.sceneData.viewProjMatrix * rd.objectData.model;
 
-      rd.objectData.color = nvmath::vec3f((torusIndex + 1) & 1, ((torusIndex + 1) & 2) / 2, ((torusIndex + 1) & 4) / 4);
+      rd.objectData.color = glm::vec3((torusIndex + 1) & 1, ((torusIndex + 1) & 2) / 2, ((torusIndex + 1) & 4) / 4);
 
       // set model UBO
       glNamedBufferSubData(rd.buf.objectUbo, 0, sizeof(ObjectData), &rd.objectData);
@@ -496,10 +496,10 @@ bool Sample::begin()
   std::cout << "GPUs found: " << m_rd.numGPUs << "\n";
 
   // control setup
-  m_control.m_sceneOrbit     = nvmath::vec3(0.0f);
+  m_control.m_sceneOrbit     = glm::vec3(0.0f);
   m_control.m_sceneDimension = 1.0f;
-  m_control.m_viewMatrix     = nvmath::look_at(m_control.m_sceneOrbit - vec3(0, 0, -m_control.m_sceneDimension),
-                                           m_control.m_sceneOrbit, vec3(0, 1, 0));
+  m_control.m_viewMatrix =
+      glm::lookAt(m_control.m_sceneOrbit - vec3(0, 0, -m_control.m_sceneDimension), m_control.m_sceneOrbit, vec3(0, 1, 0));
 
   render::initPrograms(m_rd);
   render::initFBOs(m_rd);
@@ -559,8 +559,8 @@ void Sample::think(double time)
   m_rd.m_lastUIData = m_rd.m_uiData;
 
   // handle mouse input
-  m_control.processActions(m_windowState.m_winSize,
-                           nvmath::vec2f(m_windowState.m_mouseCurrent[0], m_windowState.m_mouseCurrent[1]),
+  m_control.processActions({m_windowState.m_winSize[0], m_windowState.m_winSize[1]},
+                           glm::vec2(m_windowState.m_mouseCurrent[0], m_windowState.m_mouseCurrent[1]),
                            m_windowState.m_mouseButtonFlags, m_windowState.m_mouseWheel);
 
   // handle keyboard inputs, change number of objects
@@ -588,19 +588,19 @@ void Sample::think(double time)
   auto proj = perspective(45.f, float(m_rd.windowWidth / 2) / float(m_rd.windowHeight), m_rd.sceneData.projNear,
                           m_rd.sceneData.projFar);
 
-  const vec4f background = vec4f(118.f / 255.f, 185.f / 255.f, 0.f / 255.f, 0.f / 255.f);
+  const glm::vec4 background = glm::vec4(118.f / 255.f, 185.f / 255.f, 0.f / 255.f, 0.f / 255.f);
 
   // calculate some coordinate systems
   auto  view          = m_control.m_viewMatrix;
-  auto  iview         = invert(view);
-  vec3f eyePos_world  = vec3f(iview(0, 3), iview(1, 3), iview(2, 3));
-  vec3f eyePos_view   = vec3f(view * vec4f(eyePos_world, 1));
-  vec3f right_view    = vec3f(1.0f, 0.0f, 0.0f);
-  vec3f up_view       = vec3f(0.0f, 1.0f, 0.0f);
-  vec3f forward_view  = vec3f(0.0f, 0.0f, -1.0f);
-  vec3f right_world   = vec3f(iview * vec4f(right_view, 0.0f));
-  vec3f up_world      = vec3f(iview * vec4f(up_view, 0.0f));
-  vec3f forward_world = vec3f(iview * vec4f(forward_view, 0.0f));
+  auto  iview         = glm::inverse(view);
+  glm::vec3 eyePos_world  = glm::vec3(iview[0][3], iview[1][3], iview[2][3]);
+  glm::vec3 eyePos_view   = glm::vec3(view * glm::vec4(eyePos_world, 1));
+  glm::vec3 right_view    = glm::vec3(1.0f, 0.0f, 0.0f);
+  glm::vec3 up_view       = glm::vec3(0.0f, 1.0f, 0.0f);
+  glm::vec3 forward_view  = glm::vec3(0.0f, 0.0f, -1.0f);
+  glm::vec3 right_world   = glm::vec3(iview * glm::vec4(right_view, 0.0f));
+  glm::vec3 up_world      = glm::vec3(iview * glm::vec4(up_view, 0.0f));
+  glm::vec3 forward_world = glm::vec3(iview * glm::vec4(forward_view, 0.0f));
 
   // fill sceneData struct
   m_rd.sceneData.viewMatrix     = view;
@@ -609,9 +609,9 @@ void Sample::think(double time)
   m_rd.sceneData.lightPos_world = eyePos_world + right_world;
   m_rd.sceneData.eyepos_world   = eyePos_world;
   m_rd.sceneData.eyePos_view    = eyePos_view;
-  m_rd.sceneData.color          = vec3(background);
+  m_rd.sceneData.color          = glm::vec3(background);
   m_rd.sceneData.loadFactor     = m_rd.m_uiData.m_loadFactor;
-  m_rd.sceneData.objectColor    = vec3f(0.75f);
+  m_rd.sceneData.objectColor    = glm::vec3(0.75f);
 
   // upload scene data with gray color to both GPUs with a normal buffer upload
   // this is not really necessary, but shows gray should the multicast buffer uploads fail
@@ -636,10 +636,10 @@ void Sample::think(double time)
     // then copy the left texture of GPU1 into the right texture on GPU0
 
     // set & upload scene data with blue object color for GPU0
-    m_rd.sceneData.objectColor = vec3f(0.0f, 0.0f, 1.0f);
+    m_rd.sceneData.objectColor = glm::vec3(0.0f, 0.0f, 1.0f);
     glMulticastBufferSubDataNV(GPUMASK_0, m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData);
     // set & upload scene data with red object color for GPU1
-    m_rd.sceneData.objectColor = vec3f(1.0f, 0.0f, 0.0f);
+    m_rd.sceneData.objectColor = glm::vec3(1.0f, 0.0f, 0.0f);
     glMulticastBufferSubDataNV(GPUMASK_1, m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData);
 
     // use left texture as render target
@@ -671,7 +671,7 @@ void Sample::think(double time)
     // render into left and right texture sequentially
 
     // set & upload scene data with blue object color for the first image
-    m_rd.sceneData.objectColor = vec3f(0.0f, 0.0f, 1.0f);
+    m_rd.sceneData.objectColor = glm::vec3(0.0f, 0.0f, 1.0f);
     glNamedBufferSubData(m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData);
 
     // use left texture as render target
@@ -683,7 +683,7 @@ void Sample::think(double time)
     renderTori(m_rd, m_rd.m_uiData.m_loadFactor, m_rd.windowWidth / 2, m_rd.windowHeight, view);
 
     // set & upload scene data with red object color for second image
-    m_rd.sceneData.objectColor = vec3f(1.0f, 0.0f, 0.0f);
+    m_rd.sceneData.objectColor = glm::vec3(1.0f, 0.0f, 0.0f);
     glNamedBufferSubData(m_rd.buf.sceneUbo, 0, sizeof(SceneData), &m_rd.sceneData);
 
     // use right texture as render target
